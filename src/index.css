@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-emerald-400 font-mono antialiased overflow-hidden selection:bg-emerald-400 selection:text-slate-950;
+  }
+}
+
+@layer components {
+  .tui-panel {
+    @apply border border-slate-800/50 bg-slate-950 p-6 overflow-y-auto;
+  }
+  
+  .tui-button {
+    @apply px-4 py-2 rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition-all text-xs font-bold tracking-tight uppercase;
+  }
+
+  .tui-button-secondary {
+    @apply px-4 py-2 rounded-lg border border-emerald-400/30 text-emerald-400 hover:bg-emerald-400/10 transition-all text-xs font-bold uppercase;
+  }
+
+  .tui-input-label {
+    @apply text-[11px] font-bold text-emerald-400/60 mb-2 block tracking-widest uppercase;
+  }
+
+  .tui-slider {
+    @apply w-full h-[2px] bg-slate-800 appearance-none cursor-pointer accent-emerald-400 hover:accent-emerald-300;
+  }
+
+  .tui-toggle-group {
+    @apply flex p-1 bg-slate-900 rounded-lg border border-slate-800;
+  }
+
+  .tui-toggle-item {
+    @apply flex-1 py-1.5 text-center text-[10px] font-bold rounded-md cursor-pointer text-slate-500 hover:text-emerald-400 transition-all uppercase;
+  }
+
+  .tui-toggle-item-active {
+    @apply bg-emerald-400/20 text-emerald-400 hover:text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.1)];
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-800 rounded-full;
+  }
+}
+

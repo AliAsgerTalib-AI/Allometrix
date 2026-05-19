@@ -1,0 +1,8 @@
+{
+  "name": "Allometrix",
+  "description": "Scientific TUI-style sandbox game for biometric organism modification and survival simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

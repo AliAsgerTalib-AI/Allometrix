@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(vercel:deploy)",
+      "Bash(vercel *)",
+      "Bash(npm install *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "PowerShell(winget install *)",
+      "PowerShell(gh auth *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" auth status 2>&1)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\alias\\\\OneDrive\\\\AI Projects\\\\Allometrix\" -Recurse -Filter \"*.ts\" -o Name)",
+      "Bash(Select-Object -First 50)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\alias\\\\OneDrive\\\\AI Projects\\\\Allometrix\\\\src\" -Recurse | Where-Object { $_.Extension -in '.ts', '.tsx' } | Select-Object -ExpandProperty FullName)"
+    ]
+  }
+}
