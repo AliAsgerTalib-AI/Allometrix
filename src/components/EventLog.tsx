@@ -19,6 +19,13 @@ const EventLog: React.FC<EventLogProps> = ({ logs, onClear }) => {
 
   const filteredLogs = logs.filter(log => filter === 'all' || log.severity === filter);
 
+  const counts: Record<LogSeverity, number> = {
+    info:     logs.filter(l => l.severity === 'info').length,
+    success:  logs.filter(l => l.severity === 'success').length,
+    warning:  logs.filter(l => l.severity === 'warning').length,
+    critical: logs.filter(l => l.severity === 'critical').length,
+  };
+
   const severityConfig: Record<LogSeverity, { icon: React.ReactNode, color: string, bg: string, border: string }> = {
     info: { icon: <Info size={12} />, color: 'text-slate-400', bg: 'bg-slate-900/40', border: 'border-slate-800' },
     success: { icon: <CheckCircle size={12} />, color: 'text-emerald-400', bg: 'bg-emerald-400/5', border: 'border-emerald-400/20' },
@@ -36,19 +43,27 @@ const EventLog: React.FC<EventLogProps> = ({ logs, onClear }) => {
         
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
-            {(['all', 'info', 'success', 'warning', 'critical'] as const).map((sev) => (
-              <button
-                key={sev}
-                onClick={() => setFilter(sev)}
-                className={`text-[9px] px-2 py-0.5 rounded-full border transition-all uppercase font-bold tracking-tight ${
-                  filter === sev 
-                    ? 'border-emerald-400 bg-emerald-400 text-slate-950' 
-                    : 'border-slate-800 text-slate-500 hover:text-emerald-400 hover:bg-emerald-400/5'
-                }`}
-              >
-                {sev}
-              </button>
-            ))}
+            {(['all', 'info', 'success', 'warning', 'critical'] as const).map((sev) => {
+              const count = sev === 'all' ? logs.length : counts[sev];
+              return (
+                <button
+                  key={sev}
+                  onClick={() => setFilter(sev)}
+                  className={`text-[9px] px-2 py-0.5 rounded-full border transition-all uppercase font-bold tracking-tight flex items-center space-x-1 ${
+                    filter === sev
+                      ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                      : 'border-slate-800 text-slate-500 hover:text-emerald-400 hover:bg-emerald-400/5'
+                  }`}
+                >
+                  <span>{sev}</span>
+                  {count > 0 && (
+                    <span className={`${filter === sev ? 'opacity-60' : 'opacity-50'} tabular-nums`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           {onClear && (
             <button 

@@ -29,7 +29,47 @@
   }
 
   .tui-slider {
-    @apply w-full h-[2px] bg-slate-800 appearance-none cursor-pointer accent-emerald-400 hover:accent-emerald-300;
+    @apply w-full h-[2px] bg-transparent appearance-none cursor-pointer;
+  }
+  .tui-slider::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      var(--track-fill, #34d399) var(--track-pct, 50%),
+      #1e293b var(--track-pct, 50%)
+    );
+  }
+  .tui-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--track-fill, #34d399);
+    margin-top: -3px;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .tui-slider:hover::-webkit-slider-thumb {
+    transform: scale(1.3);
+  }
+  .tui-slider::-moz-range-track {
+    height: 2px;
+    border-radius: 9999px;
+    background: #1e293b;
+  }
+  .tui-slider::-moz-range-progress {
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--track-fill, #34d399);
+  }
+  .tui-slider::-moz-range-thumb {
+    width: 8px;
+    height: 8px;
+    border: none;
+    border-radius: 9999px;
+    background: var(--track-fill, #34d399);
+    cursor: pointer;
   }
 
   .tui-toggle-group {

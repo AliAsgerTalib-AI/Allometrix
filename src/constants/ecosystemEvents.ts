@@ -138,5 +138,38 @@ export const ECOSYSTEM_EVENTS: EcosystemEvent[] = [
       oxygenPercentage: Math.max(5, prev.oxygenPercentage - 3),
     }),
     mutationSurge: true
+  },
+  {
+    id: 'antibiotic-flood',
+    name: 'ANTIBIOTIC SATURATION',
+    description: 'Broad-spectrum antimicrobial compounds flooded the substrate. Prokaryotes face membrane disruption; eukaryotes are relatively unaffected.',
+    severity: 'HIGH',
+    apply: (prev) => ({
+      ...prev,
+      toxins: Math.min(1.0, prev.toxins + 0.45),
+      nutrientAvailability: Math.max(0.05, prev.nutrientAvailability - 0.1),
+    })
+  },
+  {
+    id: 'viral-burst',
+    name: 'VIRAL PROLIFERATION BURST',
+    description: 'Explosive viral replication collapsed cellular populations. Eukaryotes suffer disproportionate nutrient and biomass loss.',
+    severity: 'CRITICAL',
+    apply: (prev) => ({
+      ...prev,
+      nutrientAvailability: Math.max(0.02, prev.nutrientAvailability - 0.4),
+      toxins: Math.min(1.0, prev.toxins + 0.2),
+    })
+  },
+  {
+    id: 'methane-atmosphere',
+    name: 'METHANE ATMOSPHERE SHIFT',
+    description: 'Anaerobic methanogen bloom displaced oxygen reserves. Archaea thrive; aerobic organisms face systemic anoxia.',
+    severity: 'CRITICAL',
+    apply: (prev) => ({
+      ...prev,
+      oxygenPercentage: Math.max(1, prev.oxygenPercentage - 14),
+      pHLevel: Math.max(1.0, prev.pHLevel - 1.5),
+    })
   }
 ];

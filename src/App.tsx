@@ -17,12 +17,17 @@ import { ECOSYSTEM_EVENTS, EcosystemEvent } from './constants/ecosystemEvents';
 type MutationResult = { dna: OrganismDNA; param: string; oldVal: any; newVal: any; msg: string };
 
 function applyRandomMutation(dna: OrganismDNA): MutationResult | null {
+  const domain = dna.domain ?? "eukaryota";
+  const isMicrobial = domain === "bacteria" || domain === "archaea";
   const r = Math.random();
 
   // ── Numeric scalar mutations (0–0.78) ───────────────────────────────
   if (r < 0.09) {
     const oldVal = dna.totalMassKg;
-    const newVal = Math.max(0.1, oldVal + (Math.random() - 0.5) * oldVal * 0.1);
+    const rawNew = oldVal + (Math.random() - 0.5) * oldVal * 0.1;
+    const newVal = isMicrobial
+      ? Math.max(1e-15, Math.min(1e-6, rawNew))
+      : Math.max(0.1, rawNew);
     return { dna: { ...dna, totalMassKg: newVal }, param: 'totalMassKg', oldVal, newVal, msg: `GENETIC DRIFT: Biomass ${oldVal.toFixed(1)}kg → ${newVal.toFixed(1)}kg` };
   } else if (r < 0.18) {
     const oldVal = dna.geometryFactor;
@@ -63,15 +68,17 @@ function applyRandomMutation(dna: OrganismDNA): MutationResult | null {
 
   // ── Module type mutations (0.78–1.0) ────────────────────────────────
   } else if (r < 0.84) {
+    if (isMicrobial) return null; // membrane_diffusion is locked for microbials
     const types = ['mammalian_lung', 'avian_lung', 'tracheae', 'gills'] as const;
     const oldVal = dna.modules.respiration.type;
     const options = types.filter(t => t !== oldVal);
     const newVal = options[Math.floor(Math.random() * options.length)];
     return { dna: { ...dna, modules: { ...dna.modules, respiration: { ...dna.modules.respiration, type: newVal } } }, param: 'RESPIRATION MODULE', oldVal, newVal, msg: `RESPIRATORY EVOLUTION: ${oldVal.toUpperCase()} → ${newVal.toUpperCase()}` };
   } else if (r < 0.89) {
+    if (isMicrobial) return null; // no nervous system for prokaryotes
     const levels = ['primitive', 'standard', 'cephalized', 'complex'] as const;
     const oldVal = dna.modules.nervousSystem.complexity;
-    const idx = levels.indexOf(oldVal);
+    const idx = levels.indexOf(oldVal as typeof levels[number]);
     const newIdx = Math.max(0, Math.min(levels.length - 1, idx + (Math.random() < 0.6 ? 1 : -1)));
     const newVal = levels[newIdx];
     if (oldVal === newVal) return null;
@@ -83,17 +90,23 @@ function applyRandomMutation(dna: OrganismDNA): MutationResult | null {
     const newVal = options[Math.floor(Math.random() * options.length)];
     return { dna: { ...dna, modules: { ...dna.modules, sensory: { ...dna.modules.sensory, type: newVal } } }, param: 'SENSORY MODULE', oldVal, newVal, msg: `SENSORY EVOLUTION: ${oldVal.toUpperCase()} → ${newVal.toUpperCase()}` };
   } else {
-    const types = ['photoautotroph', 'herbivore', 'carnivore', 'chemoautotroph'] as const;
+    const allTypes = ['photoautotroph', 'herbivore', 'carnivore', 'chemoautotroph'] as const;
+    // Archaea strongly prefer chemoautotrophy — only allow it 80% of the time
+    const types = domain === 'archaea' && Math.random() < 0.8
+      ? (['chemoautotroph'] as const)
+      : allTypes;
     const oldVal = dna.modules.trophic.type;
-    const options = types.filter(t => t !== oldVal);
+    const options = (types as readonly string[]).filter(t => t !== oldVal) as typeof allTypes[number][];
+    if (options.length === 0) return null;
     const newVal = options[Math.floor(Math.random() * options.length)];
     return { dna: { ...dna, modules: { ...dna.modules, trophic: { ...dna.modules.trophic, type: newVal } } }, param: 'TROPHIC MODULE', oldVal, newVal, msg: `TROPHIC EVOLUTION: ${oldVal.toUpperCase()} → ${newVal.toUpperCase()}` };
   }
 }
 
 const INITIAL_DNA: OrganismDNA = {
+  domain: "eukaryota",
   name: "SPECIMEN-01",
-  totalMassKg: 70,
+  totalMassKg: 0.001,
   environment: "LAND",
   geometryFactor: 1.0,
   morphologyComplexity: 0.1,
@@ -128,6 +141,9 @@ const MILESTONES: Milestone[] = [
   { id: 'm3', name: 'Apex Intelligence', description: 'Survive with COMPLEX neurological structure.', isUnlocked: false, type: 'COMPLEXITY' },
   { id: 'm4', name: 'Titan Class', description: 'Survive with a total biomass exceeding 5,000kg.', isUnlocked: false, type: 'BIOMECHANICS' },
   { id: 'm5', name: 'Toxic Resistance', description: 'Survive in an environment with > 50% toxicity.', isUnlocked: false, type: 'ENVIRONMENT' },
+  { id: 'm6', name: 'Microbial Survivor', description: 'Survive as a Bacteria or Archaea organism.', isUnlocked: false, type: 'DOMAIN' },
+  { id: 'm7', name: 'Extremophile', description: 'Survive as Archaea in pH below 3 or above 11.', isUnlocked: false, type: 'DOMAIN' },
+  { id: 'm8', name: 'Domain Crosser', description: 'Unlock Bacteria, Archaea, and Eukaryota milestones.', isUnlocked: false, type: 'DOMAIN' },
 ];
 
 export default function App() {
@@ -197,9 +213,10 @@ export default function App() {
 
   useEffect(() => {
     if (!result.isViable) {
-      result.failureModes.forEach(mode => {
+      if (Math.random() < 0.18) {
+        const mode = result.failureModes[Math.floor(Math.random() * result.failureModes.length)];
         addLog(`EXTINCTION THREAT: ${mode.replace(/_/g, ' ')}`, 'critical');
-      });
+      }
     } else {
       addLog(`BIOMETRIC EQUILIBRIUM MAINTAINED`, 'success');
     }
@@ -217,6 +234,16 @@ export default function App() {
         if (m.id === 'm3' && dna.modules.nervousSystem.complexity === 'complex') unlocked = true;
         if (m.id === 'm4' && dna.totalMassKg > 5000) unlocked = true;
         if (m.id === 'm5' && ecosystem.toxins > 0.5) unlocked = true;
+        if (m.id === 'm6' && (dna.domain === 'bacteria' || dna.domain === 'archaea')) unlocked = true;
+        if (m.id === 'm7' && dna.domain === 'archaea' && (ecosystem.pHLevel < 3 || ecosystem.pHLevel > 11)) unlocked = true;
+        if (m.id === 'm8') {
+          const ids = prev.map(x => x.id);
+          const m6 = prev.find(x => x.id === 'm6');
+          const m7 = prev.find(x => x.id === 'm7');
+          const hasEuk = dna.domain === 'eukaryota' || (dna.domain ?? 'eukaryota') === 'eukaryota';
+          if (m6?.isUnlocked && m7?.isUnlocked && hasEuk) unlocked = true;
+          void ids;
+        }
         if (unlocked) {
           addLog(`ACHIEVEMENT UNLOCKED: ${m.name.toUpperCase()}`, 'success');
           changed = true;
@@ -226,7 +253,7 @@ export default function App() {
       });
       return changed ? next : prev;
     });
-  }, [result.isViable, dna.environment, dna.totalMassKg, dna.modules.nervousSystem.complexity, ecosystem.gravityMultiplier, ecosystem.toxins, addLog]);
+  }, [result.isViable, dna.environment, dna.totalMassKg, dna.modules.nervousSystem.complexity, ecosystem.gravityMultiplier, ecosystem.toxins, dna.domain, ecosystem.pHLevel, addLog]);
 
   useEffect(() => {
     if (ecosystem.eventFrequency <= 0) return;
@@ -364,7 +391,17 @@ export default function App() {
         <div className="flex items-center space-x-6">
           <div className="px-4 py-1.5 bg-slate-900 border border-slate-800 rounded-full flex items-center space-x-3">
             <span className="text-[10px] text-slate-500 font-semibold uppercase">Epoch</span>
-            <span className="text-xs font-bold text-emerald-400 tracking-widest">{epoch.toString().padStart(4, '0')}</span>
+            <AnimatePresence mode="popLayout">
+              <motion.span
+                key={epoch}
+                className="text-xs font-bold tracking-widest"
+                initial={{ scale: 1.3, color: '#ffffff', opacity: 0.6 }}
+                animate={{ scale: 1, color: '#34d399', opacity: 1 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              >
+                {epoch.toString().padStart(4, '0')}
+              </motion.span>
+            </AnimatePresence>
           </div>
           
           <button 
@@ -479,7 +516,7 @@ export default function App() {
         </section>
 
         {/* Right Panel: Telemetry & Milestones */}
-        <section className="tui-panel border-l border-slate-800 md:flex flex-col hidden overflow-hidden">
+        <section className={`tui-panel md:flex flex-col hidden overflow-hidden border-l transition-colors duration-700 ${result.isViable ? 'border-slate-800' : 'border-red-500/25'}`} style={result.isViable ? {} : { boxShadow: '-4px 0 20px rgba(239,68,68,0.06)' }}>
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
             <TelemetryDisplay result={result} history={history} dna={dna} ecosystem={ecosystem} />
           </div>

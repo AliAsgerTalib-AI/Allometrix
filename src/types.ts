@@ -1,11 +1,11 @@
 export interface AttachedModules {
   respiration: {
-    type: "mammalian_lung" | "avian_lung" | "tracheae" | "gills";
-    efficiency: number; 
+    type: "mammalian_lung" | "avian_lung" | "tracheae" | "gills" | "membrane_diffusion";
+    efficiency: number;
   };
   locomotion: {
-    type: "none" | "wings" | "spring_legs" | "columnar_legs" | "fins";
-    wingAreaSqM?: number; // Only for wings
+    type: "none" | "wings" | "spring_legs" | "columnar_legs" | "fins" | "flagella";
+    wingAreaSqM?: number;
   };
   thermal: {
     type: "none" | "vascular_ears" | "dorsal_plates" | "blubber";
@@ -20,14 +20,14 @@ export interface AttachedModules {
     efficiency: number;
   };
   nervousSystem: {
-    complexity: "primitive" | "standard" | "cephalized" | "complex";
+    complexity: "none" | "primitive" | "standard" | "cephalized" | "complex";
   };
   reproduction: {
-    strategy: "r_selection" | "K_selection" | "iteroparity" | "semelparity";
+    strategy: "r_selection" | "K_selection" | "iteroparity" | "semelparity" | "binary_fission";
     clutchSize: number;
   };
   sensory: {
-    type: "none" | "vision" | "echolocation" | "thermal_sense" | "vibration_sense";
+    type: "none" | "vision" | "echolocation" | "thermal_sense" | "vibration_sense" | "chemoreception";
     acuity: number; // 0.1 to 1.0
   };
   chemicalTolerance: {
@@ -37,12 +37,13 @@ export interface AttachedModules {
 }
 
 export interface OrganismDNA {
+  domain?: "bacteria" | "archaea" | "eukaryota";
   name: string;
   totalMassKg: number;
   environment: "LAND" | "WATER" | "AIR";
-  geometryFactor: number; 
+  geometryFactor: number;
   morphologyComplexity: number; // 0.0 to 1.0
-  structuralMaterial: "standard_bone" | "chitin" | "cartilage" | "exoskeleton" | "cartilage_matrix";
+  structuralMaterial: "standard_bone" | "chitin" | "cartilage" | "exoskeleton" | "cartilage_matrix" | "peptidoglycan" | "archaeal_s_layer";
   boneCrossSectionRatio: number;
   waterRetentionScale: number; // 0.0 to 1.0
   predatorType: "apex" | "mesopredator" | "none";
@@ -71,7 +72,7 @@ export interface Milestone {
   name: string;
   description: string;
   isUnlocked: boolean;
-  type: 'ENVIRONMENT' | 'COMPLEXITY' | 'BIOMECHANICS' | 'SURVIVAL';
+  type: 'ENVIRONMENT' | 'COMPLEXITY' | 'BIOMECHANICS' | 'SURVIVAL' | 'DOMAIN';
   timestamp?: number;
 }
 
@@ -87,9 +88,9 @@ export interface SimulationResult {
     skeletalLimitPascals: number;
     oxygenSupplyRate: number;
     oxygenDemandRate: number;
-    wingLoading?: number; 
-    dragPenalty?: number; 
-    trachealLimit?: number; 
+    wingLoading?: number;
+    dragPenalty?: number;
+    trachealLimit?: number;
     energyIntakeWatts?: number;
     neurologicalCostWatts?: number;
     hydrationStability?: number;
@@ -99,8 +100,10 @@ export interface SimulationResult {
     nutrientLimitKg?: number;
     predationRisk?: number;
     energyReserves?: number;
-    viabilityScore: number; 
-    fitnessScore: number;  
+    cellDiameterMicrons?: number;
+    quorumSensingBonus?: number;
+    viabilityScore: number;
+    fitnessScore: number;
     generation: number;
   };
   failureModes: string[];

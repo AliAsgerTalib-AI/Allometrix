@@ -9,7 +9,238 @@ interface CreatureVisualizerProps {
   ecosystem?: EcosystemState;
 }
 
+// ── Microbial visualizer ────────────────────────────────────────────────────
+function MicrobialBody({ dna, isViable, telemetry }: { dna: OrganismDNA; isViable: boolean; telemetry: SimulationResult['telemetry'] }) {
+  const domain = dna.domain ?? "eukaryota";
+  const width = 200;
+  const height = 120;
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Geometry factor determines cell shape
+  const shape = dna.geometryFactor < 1.5 ? 'coccus' : dna.geometryFactor < 3.0 ? 'rod' : 'spiral';
+
+  // Size scales with mass (log)
+  const massScale = 0.3 + Math.log10(Math.max(1e-15, dna.totalMassKg) + 1e-15) / 5 * 0.7;
+  const rx = Math.max(6, 28 * massScale);
+  const ry = shape === 'coccus' ? rx : rx * 0.55;
+  const rodLength = shape === 'rod' ? rx * 1.6 : rx;
+
+  // Domain-based color palette
+  const domainColor = domain === 'bacteria'
+    ? { primary: '#22d3ee', secondary: '#164e63', accent: '#67e8f9', glow: 'rgba(34,211,238,0.3)' }
+    : { primary: '#fbbf24', secondary: '#78350f', accent: '#fde68a', glow: 'rgba(251,191,36,0.3)' };
+
+  const viableColor = isViable ? domainColor.primary : '#ef4444';
+  const viableGlow = isViable ? domainColor.glow : 'rgba(239,68,68,0.3)';
+  const pulseFreq = Math.max(0.5, 3 - (telemetry.metabolicRateWatts / 800));
+
+  // Build the SVG path for the cell body
+  const getCellPath = () => {
+    if (shape === 'coccus') {
+      return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
+    }
+    if (shape === 'rod') {
+      const l = rodLength;
+      const r = ry;
+      return `M ${cx - l} ${cy - r} L ${cx + l} ${cy - r} A ${r} ${r} 0 0 1 ${cx + l} ${cy + r} L ${cx - l} ${cy + r} A ${r} ${r} 0 0 1 ${cx - l} ${cy - r} Z`;
+    }
+    // spiral: sinusoidal path approximated with bezier
+    const amp = ry * 1.8;
+    const freq = 3;
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 40; i++) {
+      const t = (i / 40) * Math.PI * 2 * freq;
+      pts.push([cx - rodLength * 1.5 + (i / 40) * rodLength * 3, cy + Math.sin(t) * amp]);
+    }
+    let d = `M ${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) d += ` L ${pts[i][0]} ${pts[i][1]}`;
+    return d;
+  };
+
+  const cellPath = getCellPath();
+  const nucleoidRx = shape === 'spiral' ? rx * 0.2 : rx * 0.4;
+  const nucleoidRy = ry * 0.4;
+
+  return (
+    <motion.g>
+      {/* Outer membrane / capsule */}
+      <motion.ellipse
+        cx={cx} cy={cy}
+        rx={shape === 'spiral' ? 0 : rx + 5} ry={shape === 'spiral' ? 0 : ry + 4}
+        fill="none" stroke={viableColor} strokeWidth="0.8" opacity={0.2}
+        strokeDasharray="3,4"
+        animate={{ opacity: [0.1, 0.25, 0.1], rx: [rx + 5, rx + 7, rx + 5] }}
+        transition={{ repeat: Infinity, duration: pulseFreq * 1.5, ease: 'easeInOut' }}
+      />
+
+      {/* Cell body */}
+      {shape === 'spiral' ? (
+        <motion.path
+          d={cellPath}
+          fill="none"
+          stroke={viableColor}
+          strokeWidth={ry * 2}
+          strokeLinecap="round"
+          opacity={0.7}
+          style={{ filter: `drop-shadow(0 0 6px ${viableGlow})` }}
+          animate={{ opacity: [0.6, 0.9, 0.6] }}
+          transition={{ repeat: Infinity, duration: pulseFreq, ease: 'easeInOut' }}
+        />
+      ) : (
+        <motion.path
+          d={cellPath}
+          fill={isViable ? domainColor.secondary : '#450a0a'}
+          stroke={viableColor}
+          strokeWidth="0.8"
+          style={{ filter: `drop-shadow(0 0 8px ${viableGlow})` }}
+          animate={{ scaleX: [1, 1 + 0.03 * (isViable ? 1 : 0), 1] }}
+          transition={{ repeat: Infinity, duration: pulseFreq, ease: 'easeInOut' }}
+        />
+      )}
+
+      {/* Cell wall texture overlay */}
+      {shape !== 'spiral' && dna.structuralMaterial === 'peptidoglycan' && (
+        <motion.path
+          d={cellPath}
+          fill="none"
+          stroke={domainColor.accent}
+          strokeWidth="0.4"
+          strokeDasharray="2,5"
+          opacity={0.3}
+          animate={{ strokeDashoffset: [0, -14] }}
+          transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+        />
+      )}
+
+      {/* Nucleoid region (prokaryotic DNA — no nuclear membrane) */}
+      {shape !== 'spiral' && (
+        <motion.ellipse
+          cx={cx} cy={cy}
+          rx={nucleoidRx} ry={nucleoidRy}
+          fill={domainColor.primary} opacity={0.25}
+          animate={{ opacity: [0.15, 0.35, 0.15], scale: [0.95, 1.05, 0.95] }}
+          transition={{ repeat: Infinity, duration: pulseFreq * 0.8 }}
+        />
+      )}
+
+      {/* Ribosomes (small dots) */}
+      {shape !== 'spiral' && [...Array(10)].map((_, i) => {
+        const angle = (i / 10) * Math.PI * 2;
+        const dist = Math.min(rx, ry) * 0.65;
+        return (
+          <motion.circle
+            key={i}
+            cx={cx + Math.cos(angle) * dist}
+            cy={cy + Math.sin(angle) * dist * (ry / rx)}
+            r={0.8}
+            fill={domainColor.accent}
+            animate={{ opacity: [0.3, 0.8, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.12 }}
+          />
+        );
+      })}
+
+      {/* Flagella */}
+      {dna.modules.locomotion.type === 'flagella' && (
+        <g>
+          {[0, 1].map((side) => (
+            <motion.path
+              key={side}
+              d={`M ${cx + (side === 0 ? rx : -rx)} ${cy}
+                  C ${cx + (side === 0 ? rx + 20 : -rx - 20)} ${cy - 15}
+                    ${cx + (side === 0 ? rx + 30 : -rx - 30)} ${cy + 10}
+                    ${cx + (side === 0 ? rx + 45 : -rx - 45)} ${cy - 5}`}
+              fill="none"
+              stroke={domainColor.accent}
+              strokeWidth="0.8"
+              opacity={0.6}
+              animate={{
+                d: side === 0
+                  ? [`M ${cx + rx} ${cy} C ${cx + rx + 20} ${cy - 15} ${cx + rx + 30} ${cy + 10} ${cx + rx + 45} ${cy - 5}`,
+                     `M ${cx + rx} ${cy} C ${cx + rx + 20} ${cy + 15} ${cx + rx + 30} ${cy - 10} ${cx + rx + 45} ${cy + 5}`,
+                     `M ${cx + rx} ${cy} C ${cx + rx + 20} ${cy - 15} ${cx + rx + 30} ${cy + 10} ${cx + rx + 45} ${cy - 5}`]
+                  : [`M ${cx - rx} ${cy} C ${cx - rx - 20} ${cy - 15} ${cx - rx - 30} ${cy + 10} ${cx - rx - 45} ${cy - 5}`,
+                     `M ${cx - rx} ${cy} C ${cx - rx - 20} ${cy + 15} ${cx - rx - 30} ${cy - 10} ${cx - rx - 45} ${cy + 5}`,
+                     `M ${cx - rx} ${cy} C ${cx - rx - 20} ${cy - 15} ${cx - rx - 30} ${cy + 10} ${cx - rx - 45} ${cy - 5}`]
+              }}
+              transition={{ repeat: Infinity, duration: 0.4, ease: 'easeInOut' }}
+            />
+          ))}
+        </g>
+      )}
+
+      {/* Pili (morphology complexity-based surface projections) */}
+      {dna.morphologyComplexity > 0.3 && shape !== 'spiral' && (
+        <g opacity={0.5}>
+          {[...Array(Math.floor(dna.morphologyComplexity * 16))].map((_, i) => {
+            const angle = (i / Math.floor(dna.morphologyComplexity * 16)) * Math.PI * 2;
+            const sx = cx + Math.cos(angle) * rx;
+            const sy = cy + Math.sin(angle) * ry;
+            const ex = cx + Math.cos(angle) * (rx + 8 + dna.morphologyComplexity * 6);
+            const ey = cy + Math.sin(angle) * (ry + 8 + dna.morphologyComplexity * 6);
+            return (
+              <motion.line key={i} x1={sx} y1={sy} x2={ex} y2={ey}
+                stroke={domainColor.accent} strokeWidth="0.5"
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ repeat: Infinity, duration: 2, delay: i * 0.1 }}
+              />
+            );
+          })}
+        </g>
+      )}
+
+      {/* Quorum sensing particles (floating for high morphologyComplexity) */}
+      {dna.morphologyComplexity > 0.5 && (
+        <g>
+          {[...Array(8)].map((_, i) => (
+            <motion.circle key={i}
+              cx={cx + (Math.random() - 0.5) * (rx * 4)}
+              cy={cy + (Math.random() - 0.5) * (ry * 4)}
+              r={1}
+              fill={domainColor.accent}
+              animate={{
+                x: [(Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20],
+                y: [(Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20],
+                opacity: [0, 0.8, 0],
+                scale: [0.5, 1.5, 0.5]
+              }}
+              transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.25 }}
+            />
+          ))}
+        </g>
+      )}
+
+      {/* Stress overlay */}
+      {!isViable && (
+        <motion.path
+          d={shape !== 'spiral' ? cellPath : ''}
+          fill="rgba(239,68,68,0.1)"
+          stroke="#ef4444"
+          strokeWidth="1.5"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ repeat: Infinity, duration: 0.4 }}
+        />
+      )}
+
+      {/* Cell diameter label */}
+      {telemetry.cellDiameterMicrons !== undefined && (
+        <text x={cx} y={cy + ry + 18} textAnchor="middle"
+          fill={domainColor.primary} opacity={0.5}
+          className="font-mono text-[5px]" fontSize="5">
+          {telemetry.cellDiameterMicrons < 1
+            ? `${(telemetry.cellDiameterMicrons * 1000).toFixed(0)} nm`
+            : `${telemetry.cellDiameterMicrons.toFixed(2)} µm`}
+        </text>
+      )}
+    </motion.g>
+  );
+}
+
 export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem }: CreatureVisualizerProps) {
+  const domain = dna.domain ?? "eukaryota";
+  const isMicrobialDomain = domain === "bacteria" || domain === "archaea";
+
   // Calculate visual properties based on DNA
   const width = 200;
   const height = 120;
@@ -66,6 +297,17 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
   const flexX = isStraining ? [0, (stressRatio - 0.5) * 8, 0, -(stressRatio - 0.5) * 8, 0] : 0;
   const jitter = isCritical ? [0, 1, -1, 0.5, -0.5, 0] : 0;
 
+  // EKG heartbeat path — 20 cycles × 40 SVG units = 800 total; viewBox shows 400 at a time
+  const buildEkgPath = (baseY: number) => {
+    let d = `M 0 ${baseY}`;
+    for (let i = 0; i < 20; i++) {
+      const o = i * 40;
+      d += ` L ${o+10} ${baseY} L ${o+13} ${baseY-9} L ${o+18} ${baseY+12} L ${o+22} ${baseY-4} L ${o+26} ${baseY} L ${o+40} ${baseY}`;
+    }
+    return d;
+  };
+  const ekgPeriod = Math.max(0.4, 2.5 - telemetry.metabolicRateWatts / 500);
+
   // Hydrodynamics influence (streamlining makes it "pointier")
   const isStreamlined = dna.modules.hydrodynamics?.type === 'streamlining';
   
@@ -81,42 +323,44 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
   const colors = envColors[dna.environment] || envColors.LAND;
 
   return (
-    <div className="relative w-full h-80 bg-black border border-white/5 rounded-2xl overflow-hidden flex items-center justify-center group select-none shadow-2xl">
+    <div className={`relative w-full h-80 bg-black rounded-2xl overflow-hidden flex items-center justify-center group select-none shadow-2xl border transition-all duration-700 ${isViable ? 'border-emerald-400/20 shadow-[0_0_24px_rgba(52,211,153,0.07)]' : 'border-red-500/35 shadow-[0_0_24px_rgba(239,68,68,0.10)]'}`}>
       {/* Background Subtle Gradient */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#111111_0%,_#000000_100%)]" />
       
       {/* Background Soft Particles based on environment */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {dna.environment === 'WATER' && (
-          [...Array(12)].map((_, i) => (
+          [...Array(18)].map((_, i) => (
             <motion.div
               key={i}
-              className="absolute w-1 h-1 bg-blue-300/10 rounded-full"
+              className="absolute rounded-full bg-blue-300/30"
+              style={{ width: 2 + (i % 3), height: 2 + (i % 3) }}
               initial={{ x: Math.random() * 800, y: 400 }}
-              animate={{ y: -20, opacity: [0, 0.4, 0] }}
-              transition={{ repeat: Infinity, duration: 4 + Math.random() * 6, delay: i * 0.5 }}
+              animate={{ y: -20, opacity: [0, 0.75, 0] }}
+              transition={{ repeat: Infinity, duration: 3 + Math.random() * 5, delay: i * 0.4 }}
             />
           ))
         )}
         {dna.environment === 'AIR' && (
-          [...Array(8)].map((_, i) => (
+          [...Array(12)].map((_, i) => (
             <motion.div
               key={i}
-              className="absolute h-[1px] bg-purple-300/10"
-              initial={{ x: -100, y: Math.random() * 400, width: 20 + Math.random() * 40 }}
-              animate={{ x: 800, opacity: [0, 0.3, 0] }}
-              transition={{ repeat: Infinity, duration: 2 + Math.random() * 2, delay: i * 0.3 }}
+              className="absolute h-[1.5px] bg-purple-300/30 rounded-full"
+              style={{ width: 20 + Math.random() * 50 }}
+              initial={{ x: -120, y: Math.random() * 400 }}
+              animate={{ x: 900, opacity: [0, 0.65, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 + Math.random() * 2.5, delay: i * 0.25 }}
             />
           ))
         )}
         {dna.environment === 'LAND' && (
-          [...Array(15)].map((_, i) => (
+          [...Array(18)].map((_, i) => (
             <motion.div
               key={i}
-              className="absolute w-[1px] h-[1px] bg-white/5"
+              className="absolute w-[1.5px] h-[1.5px] bg-white/20 rounded-full"
               initial={{ x: Math.random() * 800, y: Math.random() * 400 }}
-              animate={{ y: '+=10', x: '+=10', opacity: [0, 0.2, 0] }}
-              transition={{ repeat: Infinity, duration: 3 + Math.random() * 3 }}
+              animate={{ y: `+=${8 + (i % 5)}`, x: `+=${6 + (i % 4)}`, opacity: [0, 0.45, 0] }}
+              transition={{ repeat: Infinity, duration: 2.5 + Math.random() * 3 }}
             />
           ))
         )}
@@ -132,10 +376,28 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
         </span>
       </div>
 
-      <div className="absolute top-6 right-8 text-right opacity-40 z-20">
-        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Model 7.4-Pro</span>
-        <div className="text-[11px] text-white font-medium uppercase mt-1"> {dna.modules.trophic.type} </div>
-      </div>
+      {!isMicrobialDomain && (
+        <div className="absolute top-6 right-8 text-right opacity-40 z-20">
+          <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Model 7.4-Pro</span>
+          <div className="text-[11px] text-white font-medium uppercase mt-1"> {dna.modules.trophic.type} </div>
+        </div>
+      )}
+
+      {/* Microbial domain badge */}
+      {isMicrobialDomain && (
+        <div className="absolute top-6 right-8 text-right z-20">
+          <div className={`text-[9px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${
+            domain === 'bacteria'
+              ? 'text-cyan-400 border-cyan-400/30 bg-cyan-400/5'
+              : 'text-amber-400 border-amber-400/30 bg-amber-400/5'
+          }`}>
+            {domain === 'bacteria' ? 'PROKARYOTA' : 'ARCHAEA'}
+          </div>
+          <div className={`text-[10px] font-medium mt-1 ${domain === 'bacteria' ? 'text-cyan-300/60' : 'text-amber-300/60'}`}>
+            {dna.modules.trophic.type}
+          </div>
+        </div>
+      )}
 
       <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible z-10">
         <defs>
@@ -195,8 +457,22 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
           </pattern>
         </defs>
 
+        {isMicrobialDomain
+          ? (
+            <motion.g
+              animate={{ scale: massScale * 1.4 }}
+              transition={{ type: 'spring', stiffness: 50, damping: 15 }}
+              style={{ transformOrigin: `${centerX}px ${centerY}px` }}
+            >
+              <MicrobialBody dna={dna} isViable={isViable} telemetry={telemetry} />
+            </motion.g>
+          )
+          : null
+        }
+
+        {!isMicrobialDomain && (
         <motion.g
-          animate={{ 
+          animate={{
             scale: massScale,
             rotate: dna.structuralMaterial === 'cartilage_matrix' && isViable ? [0, 1.5, -1.5, 0] : 0,
             y: isViable ? [0, -2, 2, 0] : 0,
@@ -1024,6 +1300,7 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
           </g>
 
         </motion.g>
+        )}
 
         {/* PREDATION RISK INDICATOR */}
         {(telemetry.predationRisk || 0) > 40 && (
@@ -1077,6 +1354,29 @@ export default function CreatureVisualizer({ dna, isViable, telemetry, ecosystem
       
       <div className="absolute bottom-6 left-8 text-[9px] text-zinc-500 font-bold uppercase tracking-widest px-3 py-1 bg-white/5 rounded-full border border-white/5">
         Matrix: {dna.environment}
+      </div>
+
+      {/* EKG heartbeat strip */}
+      <div className="absolute bottom-14 inset-x-0 h-6 overflow-hidden pointer-events-none">
+        <svg
+          width="100%"
+          height="24"
+          viewBox="0 0 400 24"
+          preserveAspectRatio="none"
+          className="absolute inset-0"
+        >
+          <motion.path
+            d={buildEkgPath(13)}
+            fill="none"
+            stroke={isViable ? '#34d399' : '#ef4444'}
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={isViable ? 0.45 : 0.3}
+            animate={{ x: [0, -400] }}
+            transition={{ repeat: Infinity, duration: ekgPeriod * 10, ease: 'linear' }}
+          />
+        </svg>
       </div>
     </div>
   );
